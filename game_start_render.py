@@ -1,9 +1,9 @@
-import os
 import io
+import os
 import time
+
 import httpx
 from PIL import Image, ImageDraw, ImageFont
-import random
 
 BG_COLOR_TOP = (49, 80, 66)
 BG_COLOR_BOTTOM = (28, 35, 44)
@@ -30,9 +30,11 @@ def get_avatar_path(data_dir, steamid, url, force_update=False):
         pass
     return path if os.path.exists(path) else None
 
+
 async def get_sgdb_vertical_cover(game_name, sgdb_api_key=None, sgdb_game_name=None):
     """通过 SteamGridDB API 用英文名优先获取竖版封面URL（600x900），失败返回None"""
     import httpx
+
     if not sgdb_api_key:
         return None
     headers = {"Authorization": f"Bearer {sgdb_api_key}"}
@@ -56,9 +58,17 @@ async def get_sgdb_vertical_cover(game_name, sgdb_api_key=None, sgdb_game_name=N
             print(f"[get_sgdb_vertical_cover] SGDB API异常: {e}")
             return None
 
-async def get_cover_path(data_dir, gameid, game_name, force_update=False, sgdb_api_key=None, sgdb_game_name=None):
-    from PIL import Image as PILImage
+
+async def get_cover_path(
+    data_dir,
+    gameid,
+    game_name,
+    force_update=False,
+    sgdb_api_key=None,
+    sgdb_game_name=None,
+):
     import httpx
+
     cover_dir = os.path.join(data_dir, "covers_v")
     os.makedirs(cover_dir, exist_ok=True)
     path = os.path.join(cover_dir, f"{gameid}.jpg")
@@ -66,7 +76,9 @@ async def get_cover_path(data_dir, gameid, game_name, force_update=False, sgdb_a
     if os.path.exists(path):
         return path
     # 只尝试 SGDB 竖版封面
-    url = await get_sgdb_vertical_cover(game_name, sgdb_api_key, sgdb_game_name=sgdb_game_name)
+    url = await get_sgdb_vertical_cover(
+        game_name, sgdb_api_key, sgdb_game_name=sgdb_game_name
+    )
     if url:
         try:
             resp = httpx.get(url, timeout=10)
@@ -78,6 +90,7 @@ async def get_cover_path(data_dir, gameid, game_name, force_update=False, sgdb_a
             print(f"[get_cover_path] SGDB下载异常: {e} url={url}")
     print(f"[get_cover_path] SGDB未收录或下载失败: {gameid} {game_name}")
     return None
+
 
 def text_wrap(text, font, max_width):
     """自动换行，返回行列表"""
@@ -100,21 +113,24 @@ def text_wrap(text, font, max_width):
         lines.append(line)
     return lines
 
+
 def get_chinese_length(text):
     """估算中文字符长度（1中文=2英文）"""
     length = 0
     for c in text:
-        if '\u4e00' <= c <= '\u9fff':
+        if "\u4e00" <= c <= "\u9fff":
             length += 1
         else:
             length += 0.5
     return int(length + 0.5)
+
 
 def pad_game_name(game_name, min_cn_len=10):
     """游戏名后方补空格，渲染满10个中文字符宽度"""
     cur_len = get_chinese_length(game_name)
     pad_len = max(0, min_cn_len - cur_len)
     return game_name + "　" * pad_len + "   "  # 中文全角空格+3半角空格
+
 
 def render_gradient_bg(img_w, img_h, color_top, color_bottom):
     """生成竖向渐变背景"""
@@ -130,9 +146,11 @@ def render_gradient_bg(img_w, img_h, color_top, color_bottom):
             base.putpixel((x, y), (r, g, b))
     return base
 
+
 async def get_playtime_hours(api_key, steamid, appid, retry_times=3):
     """通过 Steam Web API 获取某玩家某游戏的总游玩小时数（异步实现，失败自动重试）"""
     import asyncio
+
     url = (
         f"https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
         f"?key={api_key}&steamid={steamid}&include_appinfo=0&appids_filter[0]={appid}"
@@ -149,17 +167,22 @@ async def get_playtime_hours(api_key, steamid, appid, retry_times=3):
                         if str(g.get("appid")) == str(appid):
                             playtime_min = g.get("playtime_forever", 0)
                             return round(playtime_min / 60, 1)
-                    print(f"[get_playtime_hours] 未找到目标游戏: steamid={steamid} appid={appid} games={games}")
+                    print(
+                        f"[get_playtime_hours] 未找到目标游戏: steamid={steamid} appid={appid} games={games}"
+                    )
                 else:
-                    print(f"[get_playtime_hours] HTTP状态码异常: {resp.status_code} url={url}")
+                    print(
+                        f"[get_playtime_hours] HTTP状态码异常: {resp.status_code} url={url}"
+                    )
         except Exception as e:
             print(f"[get_playtime_hours] 获取游玩时间异常: {e} url={url}")
         if attempt < retry_times - 1:
             await asyncio.sleep(1)
     return 0.0
 
+
 def get_font_path(font_name):
-    fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
+    fonts_dir = os.path.join(os.path.dirname(__file__), "fonts")
     font_path = os.path.join(fonts_dir, font_name)
     if os.path.exists(font_path):
         return font_path
@@ -168,15 +191,27 @@ def get_font_path(font_name):
         return font_path2
     return font_name
 
-def render_game_start_image(player_name, avatar_path, game_name, cover_path, playtime_hours=None, superpower=None, online_count=None, font_path=None):
+
+def render_game_start_image(
+    player_name,
+    avatar_path,
+    game_name,
+    cover_path,
+    playtime_hours=None,
+    superpower=None,
+    online_count=None,
+    font_path=None,
+):
     # 字体
-    fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
-    font_regular = os.path.join(fonts_dir, 'NotoSansHans-Regular.otf')
-    font_medium = os.path.join(fonts_dir, 'NotoSansHans-Medium.otf')
+    fonts_dir = os.path.join(os.path.dirname(__file__), "fonts")
+    font_regular = os.path.join(fonts_dir, "NotoSansHans-Regular.otf")
+    font_medium = os.path.join(fonts_dir, "NotoSansHans-Medium.otf")
     if not os.path.exists(font_regular):
-        font_regular = os.path.join(os.path.dirname(__file__), 'NotoSansHans-Regular.otf')
+        font_regular = os.path.join(
+            os.path.dirname(__file__), "NotoSansHans-Regular.otf"
+        )
     if not os.path.exists(font_medium):
-        font_medium = os.path.join(os.path.dirname(__file__), 'NotoSansHans-Medium.otf')
+        font_medium = os.path.join(os.path.dirname(__file__), "NotoSansHans-Medium.otf")
     try:
         font_bold = ImageFont.truetype(font_medium, 28)
         font = ImageFont.truetype(font_regular, 22)
@@ -186,7 +221,9 @@ def render_game_start_image(player_name, avatar_path, game_name, cover_path, pla
 
     img_w = IMG_W
     img_h = IMG_H
-    img = render_gradient_bg(img_w, img_h, BG_COLOR_TOP, BG_COLOR_BOTTOM).convert("RGBA")
+    img = render_gradient_bg(img_w, img_h, BG_COLOR_TOP, BG_COLOR_BOTTOM).convert(
+        "RGBA"
+    )
     draw = ImageDraw.Draw(img)
 
     # 1. 封面图贴左，等比例缩放高度，宽度自适应，左贴右留空，不裁剪
@@ -227,11 +264,17 @@ def render_game_start_image(player_name, avatar_path, game_name, cover_path, pla
     # 头像渲染（只保留一次）
     if avatar_path and os.path.exists(avatar_path):
         try:
-            avatar = Image.open(avatar_path).convert("RGBA").resize((AVATAR_SIZE, AVATAR_SIZE))
+            avatar = (
+                Image.open(avatar_path)
+                .convert("RGBA")
+                .resize((AVATAR_SIZE, AVATAR_SIZE))
+            )
             # 圆角遮罩
             mask = Image.new("L", (AVATAR_SIZE, AVATAR_SIZE), 0)
             draw_mask = ImageDraw.Draw(mask)
-            draw_mask.rounded_rectangle((0, 0, AVATAR_SIZE, AVATAR_SIZE), radius=AVATAR_SIZE//5, fill=255)
+            draw_mask.rounded_rectangle(
+                (0, 0, AVATAR_SIZE, AVATAR_SIZE), radius=AVATAR_SIZE // 5, fill=255
+            )
             avatar_rgba = avatar.copy()
             avatar_rgba.putalpha(mask)
             img.alpha_composite(avatar_rgba, (avatar_x, avatar_y))
@@ -256,11 +299,15 @@ def render_game_start_image(player_name, avatar_path, game_name, cover_path, pla
                 ability_color = (120, 180, 255, 128)
                 draw.text(
                     (avatar_x + (AVATAR_SIZE - title_w) // 2, power_y),
-                    title_text, font=font_power_title, fill=title_color
+                    title_text,
+                    font=font_power_title,
+                    fill=title_color,
                 )
                 draw.text(
                     (avatar_x + (AVATAR_SIZE - ability_w) // 2, power_y + title_h + 2),
-                    ability_text, font=font_power, fill=ability_color
+                    ability_text,
+                    font=font_power,
+                    fill=ability_color,
                 )
         except Exception as e:
             print(f"[render_game_start_image] 头像/超能力渲染失败: {e}")
@@ -281,20 +328,39 @@ def render_game_start_image(player_name, avatar_path, game_name, cover_path, pla
         font_bold_final = ImageFont.truetype(font_medium, player_font_size)
     except:
         font_bold_final = ImageFont.load_default()
-    draw.text((text_x + 8, text_y), player_name, font=font_bold_final, fill=(255,255,255,255))
+    draw.text(
+        (text_x + 8, text_y),
+        player_name,
+        font=font_bold_final,
+        fill=(255, 255, 255, 255),
+    )
 
     # “正在玩”
-    draw.text((text_x + 8, text_y + line_height), "正在玩", font=font, fill=(200,255,200,255))
+    draw.text(
+        (text_x + 8, text_y + line_height),
+        "正在玩",
+        font=font,
+        fill=(200, 255, 200, 255),
+    )
     # 游戏名多行（亮绿色 129,173,81）
     for idx, line in enumerate(game_name_lines):
-        draw.text((text_x + 8, text_y + line_height*2 + idx*line_height), line, font=font, fill=(129,173,81,255))
+        draw.text(
+            (text_x + 8, text_y + line_height * 2 + idx * line_height),
+            line,
+            font=font,
+            fill=(129, 173, 81, 255),
+        )
     # 游戏时长（紧跟在最后一行游戏名下方，无多余空行）
     if playtime_hours is not None:
         playtime_str = f"游戏时间 {playtime_hours} 小时"
-        y_time = text_y + line_height*2 + len(game_name_lines)*line_height + 4  # 仅加4像素间距
+        y_time = (
+            text_y + line_height * 2 + len(game_name_lines) * line_height + 4
+        )  # 仅加4像素间距
         draw.text(
             (text_x + 8, y_time),
-            playtime_str, font=font_small, fill=(120,180,255,255)
+            playtime_str,
+            font=font_small,
+            fill=(120, 180, 255, 255),
         )
         print(f"[render_game_start_image] 渲染游戏时长: {playtime_str}")
     else:
@@ -306,23 +372,57 @@ def render_game_start_image(player_name, avatar_path, game_name, cover_path, pla
             font_online = ImageFont.truetype(font_regular, 14)
         except:
             font_online = ImageFont.load_default()
-        online_text = f"\u25CF玩家人数{online_count}"
+        online_text = f"\u25cf玩家人数{online_count}"
         text_bbox = draw.textbbox((0, 0), online_text, font=font_online)
         text_w = text_bbox[2] - text_bbox[0]
         text_h = text_bbox[3] - text_bbox[1]
         margin = 10
-        draw.text((IMG_W - text_w - margin, margin), online_text, font=font_online, fill=(120,180,255,180))
+        draw.text(
+            (IMG_W - text_w - margin, margin),
+            online_text,
+            font=font_online,
+            fill=(120, 180, 255, 180),
+        )
 
     return img.convert("RGB")
 
-async def render_game_start(data_dir, steamid, player_name, avatar_url, gameid, game_name, api_key=None, superpower=None, online_count=None, sgdb_api_key=None, font_path=None, sgdb_game_name=None):
+
+async def render_game_start(
+    data_dir,
+    steamid,
+    player_name,
+    avatar_url,
+    gameid,
+    game_name,
+    api_key=None,
+    superpower=None,
+    online_count=None,
+    sgdb_api_key=None,
+    font_path=None,
+    sgdb_game_name=None,
+):
     print(f"[render_game_start] superpower参数: {superpower}")
     avatar_path = get_avatar_path(data_dir, steamid, avatar_url)
-    cover_path = await get_cover_path(data_dir, gameid, game_name, sgdb_api_key=sgdb_api_key, sgdb_game_name=sgdb_game_name)
+    cover_path = await get_cover_path(
+        data_dir,
+        gameid,
+        game_name,
+        sgdb_api_key=sgdb_api_key,
+        sgdb_game_name=sgdb_game_name,
+    )
     playtime_hours = None
     if api_key:
         playtime_hours = await get_playtime_hours(api_key, steamid, gameid)
-    img = render_game_start_image(player_name, avatar_path, game_name, cover_path, playtime_hours, superpower, online_count, font_path=font_path)
+    img = render_game_start_image(
+        player_name,
+        avatar_path,
+        game_name,
+        cover_path,
+        playtime_hours,
+        superpower,
+        online_count,
+        font_path=font_path,
+    )
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)

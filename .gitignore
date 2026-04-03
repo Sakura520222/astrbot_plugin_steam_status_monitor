@@ -3,3 +3,4 @@ logs/
 .sakura/
 CLAUDE.md
 .claude/settings.local.json
+run_ruff.py

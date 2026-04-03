@@ -1,9 +1,12 @@
 import time
+
 import httpx
-from astrbot.api.message_components import Plain, Image
+
+from astrbot.api.message_components import Image, Plain
+
 
 async def handle_openbox(self, event, steamid: str):
-    '''查询并格式化展示指定SteamID的全部API返回信息（中文字段名，头像图片附加，位置ID合并，状态字段直观显示）'''
+    """查询并格式化展示指定SteamID的全部API返回信息（中文字段名，头像图片附加，位置ID合并，状态字段直观显示）"""
     url = (
         "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/"
         f"?key={self.API_KEY}&steamids={steamid}"
@@ -23,7 +26,7 @@ async def handle_openbox(self, event, steamid: str):
         "realname": "真实姓名",
         "primaryclanid": "主要群组ID",
         "personastateflags": "状态标志",
-        "commentpermission": "评论权限"
+        "commentpermission": "评论权限",
     }
     personastate_map = {
         0: "离线",
@@ -32,21 +35,11 @@ async def handle_openbox(self, event, steamid: str):
         3: "离开",
         4: "打盹",
         5: "想交易",
-        6: "想游戏"
+        6: "想游戏",
     }
-    communityvisibilitystate_map = {
-        1: "私密",
-        3: "公开"
-    }
-    profilestate_map = {
-        0: "未激活",
-        1: "激活"
-    }
-    commentpermission_map = {
-        0: "禁止评论",
-        1: "允许好友评论",
-        2: "所有人可评论"
-    }
+    communityvisibilitystate_map = {1: "私密", 3: "公开"}
+    profilestate_map = {0: "未激活", 1: "激活"}
+    commentpermission_map = {0: "禁止评论", 1: "允许好友评论", 2: "所有人可评论"}
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(url)
@@ -54,7 +47,7 @@ async def handle_openbox(self, event, steamid: str):
                 yield event.plain_result(f"API请求失败: HTTP {resp.status_code}")
                 return
             data = resp.json()
-            players = data.get('response', {}).get('players', [])
+            players = data.get("response", {}).get("players", [])
             if not players:
                 yield event.plain_result("未查到该SteamID信息")
                 return
@@ -66,7 +59,13 @@ async def handle_openbox(self, event, steamid: str):
             lines = []
             now = int(time.time())
             for k, v in player.items():
-                if k in ("avatarmedium", "avatarfull", "loccountrycode", "locstatecode", "loccityid"):
+                if k in (
+                    "avatarmedium",
+                    "avatarfull",
+                    "loccountrycode",
+                    "locstatecode",
+                    "loccityid",
+                ):
                     continue
                 if k == "avatar":
                     continue
@@ -89,10 +88,13 @@ async def handle_openbox(self, event, steamid: str):
                     v = str(v)
                 elif k in ("lastlogoff", "timecreated") and isinstance(v, int):
                     from datetime import datetime
+
                     v = datetime.fromtimestamp(v).strftime("%Y-%m-%d %H:%M:%S")
                 lines.append(f"{zh_key}: {v}")
             if loc_country or loc_state or loc_city:
-                loc_str = "-".join(str(x) for x in [loc_country, loc_state, loc_city] if x)
+                loc_str = "-".join(
+                    str(x) for x in [loc_country, loc_state, loc_city] if x
+                )
                 lines.append(f"位置ID: {loc_str}")
             msg_chain = []
             if avatar_url:

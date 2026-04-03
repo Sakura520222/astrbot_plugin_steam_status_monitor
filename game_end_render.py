@@ -1,13 +1,13 @@
 # filepath: c:\Users\Maoer\Desktop\AstrBotLauncher-0.1.5.6\AstrBot\data\plugins\steam_status_monitor_V2\game_end_render.py
-import os
 import io
+import os
 import time
-import asyncio
+
 import httpx
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 
 # 更深的蓝紫色到黑色渐变
-BG_COLOR_TOP = (24, 18, 48)   # 顶部深蓝紫
+BG_COLOR_TOP = (24, 18, 48)  # 顶部深蓝紫
 BG_COLOR_BOTTOM = (8, 8, 16)  # 底部接近黑色
 AVATAR_SIZE = 80
 COVER_W, COVER_H = 80, 120
@@ -40,30 +40,40 @@ async def get_sgdb_vertical_cover(game_name, sgdb_api_key=None, sgdb_game_name=N
             print(f"[get_sgdb_vertical_cover] SGDB API异常: {e}")
             return None
 
+
 def get_avatar_path(data_dir, steamid, url, force_update=False):
     avatar_dir = os.path.join(data_dir, "avatars")
     os.makedirs(avatar_dir, exist_ok=True)
     path = os.path.join(avatar_dir, f"{steamid}.jpg")
     refresh_interval = 24 * 3600
-    print(f"[game_end_render] get_avatar_path: url={url}, path={path}, exists={os.path.exists(path)}")
+    print(
+        f"[game_end_render] get_avatar_path: url={url}, path={path}, exists={os.path.exists(path)}"
+    )
     if os.path.exists(path) and not force_update:
         if time.time() - os.path.getmtime(path) < refresh_interval:
-            print(f"[game_end_render] 使用本地头像: {path}, size={os.path.getsize(path)}")
+            print(
+                f"[game_end_render] 使用本地头像: {path}, size={os.path.getsize(path)}"
+            )
             return path
     try:
         import httpx
+
         resp = httpx.get(url, timeout=10)
         if resp.status_code == 200:
             with open(path, "wb") as f:
                 f.write(resp.content)
-            print(f"[game_end_render] 下载头像成功: {path}, size={os.path.getsize(path)}")
+            print(
+                f"[game_end_render] 下载头像成功: {path}, size={os.path.getsize(path)}"
+            )
             return path
         else:
             print(f"[game_end_render] 头像下载失败: HTTP {resp.status_code} url={url}")
     except Exception as e:
         import traceback
+
         print(f"[game_end_render] 头像下载异常: {e}\n{traceback.format_exc()}")
     return path if os.path.exists(path) else None
+
 
 # 渐变背景函数补充
 def render_gradient_bg(img_w, img_h, color_top, color_bottom):
@@ -79,10 +89,18 @@ def render_gradient_bg(img_w, img_h, color_top, color_bottom):
             base.putpixel((x, y), (r, g, b))
     return base
 
+
 # get_cover_path 改为 async def 并 await get_sgdb_vertical_cover
-async def get_cover_path(data_dir, gameid, game_name, force_update=False, sgdb_api_key=None, sgdb_game_name=None):
-    from PIL import Image as PILImage
+async def get_cover_path(
+    data_dir,
+    gameid,
+    game_name,
+    force_update=False,
+    sgdb_api_key=None,
+    sgdb_game_name=None,
+):
     import httpx
+
     cover_dir = os.path.join(data_dir, "covers_v")
     os.makedirs(cover_dir, exist_ok=True)
     path = os.path.join(cover_dir, f"{gameid}.jpg")
@@ -90,7 +108,9 @@ async def get_cover_path(data_dir, gameid, game_name, force_update=False, sgdb_a
     if os.path.exists(path):
         return path
     # 只尝试 SGDB 竖版封面
-    url = await get_sgdb_vertical_cover(game_name, sgdb_api_key, sgdb_game_name=sgdb_game_name)
+    url = await get_sgdb_vertical_cover(
+        game_name, sgdb_api_key, sgdb_game_name=sgdb_game_name
+    )
     if url:
         try:
             resp = httpx.get(url, timeout=10)
@@ -103,19 +123,34 @@ async def get_cover_path(data_dir, gameid, game_name, force_update=False, sgdb_a
     print(f"[get_cover_path] SGDB未收录或下载失败: {gameid} {game_name}")
     return None
 
+
 def draw_duration_bar(draw, x, y, width, height, duration_h):
     pad = 1
     # 先画底色和描边
-    draw.rounded_rectangle([x-pad, y-pad, x+width+pad, y+height+pad], radius=(height+pad)//2, fill=(0,0,0,180))
-    draw.rounded_rectangle([x, y, x + width, y + height], radius=height//2, outline=(0,0,0,255), width=1)
-    draw.rounded_rectangle([x-2, y-2, x + width+2, y + height+2], radius=(height+4)//2, outline=(255,255,255,220), width=1)
+    draw.rounded_rectangle(
+        [x - pad, y - pad, x + width + pad, y + height + pad],
+        radius=(height + pad) // 2,
+        fill=(0, 0, 0, 180),
+    )
+    draw.rounded_rectangle(
+        [x, y, x + width, y + height],
+        radius=height // 2,
+        outline=(0, 0, 0, 255),
+        width=1,
+    )
+    draw.rounded_rectangle(
+        [x - 2, y - 2, x + width + 2, y + height + 2],
+        radius=(height + 4) // 2,
+        outline=(255, 255, 255, 220),
+        width=1,
+    )
     bar_colors = [
-        (80, 200, 120),    # 1小时 绿色
-        (255, 220, 80),    # 3小时 黄色
-        (255, 160, 80),    # 5小时 橙色
-        (255, 80, 80),     # 7小时 红色
-        (200, 80, 160),    # 9小时 紫红色
-        (120, 80, 200)     # 12小时 深紫色
+        (80, 200, 120),  # 1小时 绿色
+        (255, 220, 80),  # 3小时 黄色
+        (255, 160, 80),  # 5小时 橙色
+        (255, 80, 80),  # 7小时 红色
+        (200, 80, 160),  # 9小时 紫红色
+        (120, 80, 200),  # 12小时 深紫色
     ]
     seg_limits = [1, 3, 5, 7, 9, 12]
     seg_starts = [0] + seg_limits[:-1]
@@ -123,55 +158,78 @@ def draw_duration_bar(draw, x, y, width, height, duration_h):
     if duration_h > 12:
         # 彩色渐变条
         for i in range(width):
-            ratio = i / max(width-1, 1)
+            ratio = i / max(width - 1, 1)
             # 渐变色：红橙黄绿青蓝紫
             from colorsys import hsv_to_rgb
+
             rgb = hsv_to_rgb(ratio, 0.8, 1.0)
-            color = tuple(int(c*255) for c in rgb)
-            draw.line([(x+i, y), (x+i, y+height)], fill=color, width=1)
+            color = tuple(int(c * 255) for c in rgb)
+            draw.line([(x + i, y), (x + i, y + height)], fill=color, width=1)
         # 叠加MAX文字
         try:
-            font = ImageFont.truetype("msyhbd.ttc", height+8)
+            font = ImageFont.truetype("msyhbd.ttc", height + 8)
         except:
             font = ImageFont.load_default()
         text = "MAX"
-        text_bbox = draw.textbbox((0,0), text, font=font)
+        text_bbox = draw.textbbox((0, 0), text, font=font)
         text_w = text_bbox[2] - text_bbox[0]
         text_h = text_bbox[3] - text_bbox[1]
         center_x = x + width // 2 - text_w // 2
         center_y = y + height // 2 - text_h // 2 - 5
-        draw.text((center_x, center_y), text, font=font, fill=(255,255,255,255), stroke_width=2, stroke_fill=(0,0,0,180))
+        draw.text(
+            (center_x, center_y),
+            text,
+            font=font,
+            fill=(255, 255, 255, 255),
+            stroke_width=2,
+            stroke_fill=(0, 0, 0, 180),
+        )
     else:
         # 普通分段条
-        for i, (seg_start, seg_end, color) in enumerate(zip(seg_starts, seg_limits, bar_colors)):
+        for i, (seg_start, seg_end, color) in enumerate(
+            zip(seg_starts, seg_limits, bar_colors)
+        ):
             seg_val = min(max(duration_h - seg_start, 0), seg_end - seg_start)
             seg_ratio = seg_val / (seg_end - seg_start) if seg_end > seg_start else 0
             seg_w = int(width * seg_ratio)
             if seg_w > 0:
-                draw.rounded_rectangle([x, y, x + seg_w, y + height], radius=height//2, fill=color)
-        for i, (seg_start, seg_end, color) in enumerate(zip(seg_starts, seg_limits, bar_colors)):
+                draw.rounded_rectangle(
+                    [x, y, x + seg_w, y + height], radius=height // 2, fill=color
+                )
+        for i, (seg_start, seg_end, color) in enumerate(
+            zip(seg_starts, seg_limits, bar_colors)
+        ):
             if seg_texts[i] and duration_h > seg_start:
                 text = seg_texts[i]
                 try:
-                    font = ImageFont.truetype("msyhbd.ttc", height+6)
+                    font = ImageFont.truetype("msyhbd.ttc", height + 6)
                 except:
                     font = ImageFont.load_default()
-                text_bbox = draw.textbbox((0,0), text, font=font)
+                text_bbox = draw.textbbox((0, 0), text, font=font)
                 text_w = text_bbox[2] - text_bbox[0]
                 text_h = text_bbox[3] - text_bbox[1]
                 center_x = x + width // 2 - text_w // 2
                 center_y = y + height // 2 - text_h // 2 - 5
-                draw.text((center_x, center_y), text, font=font, fill=color, stroke_width=2, stroke_fill=(0,0,0,180))
+                draw.text(
+                    (center_x, center_y),
+                    text,
+                    font=font,
+                    fill=color,
+                    stroke_width=2,
+                    stroke_fill=(0, 0, 0, 180),
+                )
+
 
 def get_font_path(font_name):
-    fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
+    fonts_dir = os.path.join(os.path.dirname(__file__), "fonts")
     font_path = os.path.join(fonts_dir, font_name)
-    if (os.path.exists(font_path)):
+    if os.path.exists(font_path):
         return font_path
     font_path2 = os.path.join(os.path.dirname(__file__), font_name)
-    if (os.path.exists(font_path2)):
+    if os.path.exists(font_path2):
         return font_path2
     return font_name
+
 
 def text_wrap(text, font, max_width):
     lines = []
@@ -192,15 +250,27 @@ def text_wrap(text, font, max_width):
         lines.append(line)
     return lines
 
-def render_game_end_image(player_name, avatar_path, game_name, cover_path, end_time_str, tip_text, duration_h, font_path=None):
+
+def render_game_end_image(
+    player_name,
+    avatar_path,
+    game_name,
+    cover_path,
+    end_time_str,
+    tip_text,
+    duration_h,
+    font_path=None,
+):
     # 字体
-    fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
-    font_regular = os.path.join(fonts_dir, 'NotoSansHans-Regular.otf')
-    font_medium = os.path.join(fonts_dir, 'NotoSansHans-Medium.otf')
+    fonts_dir = os.path.join(os.path.dirname(__file__), "fonts")
+    font_regular = os.path.join(fonts_dir, "NotoSansHans-Regular.otf")
+    font_medium = os.path.join(fonts_dir, "NotoSansHans-Medium.otf")
     if not os.path.exists(font_regular):
-        font_regular = os.path.join(os.path.dirname(__file__), 'NotoSansHans-Regular.otf')
+        font_regular = os.path.join(
+            os.path.dirname(__file__), "NotoSansHans-Regular.otf"
+        )
     if not os.path.exists(font_medium):
-        font_medium = os.path.join(os.path.dirname(__file__), 'NotoSansHans-Medium.otf')
+        font_medium = os.path.join(os.path.dirname(__file__), "NotoSansHans-Medium.otf")
     try:
         font_title = ImageFont.truetype(font_medium, 28)
         font_game = ImageFont.truetype(font_regular, 22)
@@ -208,9 +278,13 @@ def render_game_end_image(player_name, avatar_path, game_name, cover_path, end_t
         font_luck = ImageFont.truetype(font_regular, 14)
         font_time = ImageFont.truetype(font_regular, 8)
     except:
-        font_title = font_game = font_tip = font_luck = font_time = ImageFont.load_default()
+        font_title = font_game = font_tip = font_luck = font_time = (
+            ImageFont.load_default()
+        )
 
-    img = render_gradient_bg(IMG_W, IMG_H, BG_COLOR_TOP, BG_COLOR_BOTTOM).convert("RGBA")
+    img = render_gradient_bg(IMG_W, IMG_H, BG_COLOR_TOP, BG_COLOR_BOTTOM).convert(
+        "RGBA"
+    )
     draw = ImageDraw.Draw(img)
 
     # 1. 背景星星横向平铺（等比例缩放高度，透明度30%）
@@ -254,38 +328,62 @@ def render_game_end_image(player_name, avatar_path, game_name, cover_path, end_t
     if avatar_path and os.path.exists(avatar_path):
         try:
             print(f"[game_end_render] 尝试打开头像: {avatar_path}")
-            avatar = Image.open(avatar_path).convert("RGBA").resize((AVATAR_SIZE, AVATAR_SIZE))
+            avatar = (
+                Image.open(avatar_path)
+                .convert("RGBA")
+                .resize((AVATAR_SIZE, AVATAR_SIZE))
+            )
             # 圆角遮罩
             mask = Image.new("L", (AVATAR_SIZE, AVATAR_SIZE), 0)
             draw_mask = ImageDraw.Draw(mask)
-            draw_mask.rounded_rectangle((0, 0, AVATAR_SIZE, AVATAR_SIZE), radius=AVATAR_SIZE//5, fill=255)
+            draw_mask.rounded_rectangle(
+                (0, 0, AVATAR_SIZE, AVATAR_SIZE), radius=AVATAR_SIZE // 5, fill=255
+            )
             avatar_rgba = avatar.copy()
             avatar_rgba.putalpha(mask)
             img.alpha_composite(avatar_rgba, (avatar_x, avatar_y))
         except Exception as e:
             import traceback
+
             print(f"[game_end_render] 头像加载失败: {e}\n{traceback.format_exc()}")
 
     # 今日人品（0~100），显示在头像正下方，字体更小，每个steamid每天固定
-    import random, datetime, hashlib
+    import datetime
+    import hashlib
+
     today = datetime.date.today().isoformat()
-    luck_seed = f"{player_name}_{today}".encode("utf-8")
+    luck_seed = f"{player_name}_{today}".encode()
     today_luck = int(hashlib.md5(luck_seed).hexdigest(), 16) % 101
     luck_text = f"今日人品：{today_luck}"
     luck_font_y = avatar_y + AVATAR_SIZE + 8
-    draw.text((avatar_x, luck_font_y), luck_text, font=font_luck, fill=(200,220,255,220), stroke_width=1, stroke_fill=(0,0,0,255))
+    draw.text(
+        (avatar_x, luck_font_y),
+        luck_text,
+        font=font_luck,
+        fill=(200, 220, 255, 220),
+        stroke_width=1,
+        stroke_fill=(0, 0, 0, 255),
+    )
 
     # 当前时间叠加在最上方右上角，字号更小
     try:
         from datetime import datetime
+
         t = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M")
         time_str = t.strftime("%H:%M")
     except Exception:
         time_str = end_time_str[-5:]
-    bbox = draw.textbbox((0,0), time_str, font=font_time, stroke_width=2)
+    bbox = draw.textbbox((0, 0), time_str, font=font_time, stroke_width=2)
     time_x = IMG_W - bbox[2] + bbox[0] - 18  # 右上角，留边距
     time_y = 6
-    draw.text((time_x, time_y), time_str, font=font_time, fill=(255,255,255,220), stroke_width=2, stroke_fill=(0,0,0,255))
+    draw.text(
+        (time_x, time_y),
+        time_str,
+        font=font_time,
+        fill=(255, 255, 255, 220),
+        stroke_width=2,
+        stroke_fill=(0, 0, 0, 255),
+    )
 
     # 4. 玩家名，顶部居左，自适应字号防止出界
     title_text = f"{player_name} 结束游戏"
@@ -305,7 +403,14 @@ def render_game_end_image(player_name, avatar_path, game_name, cover_path, end_t
         font_title = ImageFont.truetype(font_medium, title_font_size)
     except:
         font_title = ImageFont.load_default()
-    draw.text((avatar_x + AVATAR_SIZE + 20, 16), title_text, font=font_title, fill=(180,160,255,255), stroke_width=2, stroke_fill=(0,0,0,255))
+    draw.text(
+        (avatar_x + AVATAR_SIZE + 20, 16),
+        title_text,
+        font=font_title,
+        fill=(180, 160, 255, 255),
+        stroke_width=2,
+        stroke_fill=(0, 0, 0, 255),
+    )
 
     # 5. 游戏名，头像右侧居左，第二行，自动换行
     game_name_y = 16 + font_title.size + 8
@@ -313,7 +418,14 @@ def render_game_end_image(player_name, avatar_path, game_name, cover_path, end_t
     game_name_lines = text_wrap(game_name, font_game, max_game_name_w)
     max_lines = 2
     for idx, line in enumerate(game_name_lines[:max_lines]):
-        draw.text((avatar_x + AVATAR_SIZE + 20, game_name_y + idx * (font_game.size + 2)), line, font=font_game, fill=(220,220,255,255), stroke_width=2, stroke_fill=(0,0,0,255))
+        draw.text(
+            (avatar_x + AVATAR_SIZE + 20, game_name_y + idx * (font_game.size + 2)),
+            line,
+            font=font_game,
+            fill=(220, 220, 255, 255),
+            stroke_width=2,
+            stroke_fill=(0, 0, 0, 255),
+        )
 
     # 6. 空几行（间隔）
     tip_y = game_name_y + font_game.size + 28
@@ -322,30 +434,73 @@ def render_game_end_image(player_name, avatar_path, game_name, cover_path, end_t
     bar_x = avatar_x
     bar_y = IMG_H - 24
     if duration_h < 1:
-        min_text = f"已玩{int(duration_h*60)}分钟："
+        min_text = f"已玩{int(duration_h * 60)}分钟："
     else:
         min_text = f"已玩{duration_h:.1f}小时："
     # 文字略抬高，进度条略降低
-    draw.text((bar_x, bar_y-2), min_text, font=font_tip, fill=(180, 220, 255, 220), stroke_width=1, stroke_fill=(0,0,0,255))
-    min_text_bbox = draw.textbbox((bar_x, bar_y-2), min_text, font=font_tip)
+    draw.text(
+        (bar_x, bar_y - 2),
+        min_text,
+        font=font_tip,
+        fill=(180, 220, 255, 220),
+        stroke_width=1,
+        stroke_fill=(0, 0, 0, 255),
+    )
+    min_text_bbox = draw.textbbox((bar_x, bar_y - 2), min_text, font=font_tip)
     bar_start_x = min_text_bbox[2] + 6
     bar_w = IMG_W - bar_start_x - 18  # 进度条延伸到画布结尾，右侧留18px
     bar_h = 6
     if bar_w > 0:
-        draw_duration_bar(draw, bar_start_x, bar_y+6, bar_w, bar_h, duration_h)
+        draw_duration_bar(draw, bar_start_x, bar_y + 6, bar_w, bar_h, duration_h)
     else:
         print(f"[game_end_render] 跳过进度条渲染，bar_w={bar_w}")
 
     # 8. 友好提示词，玩家名列底部，且与进度条有间隔
     tip_y = bar_y - font_tip.size - 8
-    draw.text((bar_x, tip_y), tip_text, font=font_tip, fill=(200,180,255,200), stroke_width=1, stroke_fill=(0,0,0,255))
+    draw.text(
+        (bar_x, tip_y),
+        tip_text,
+        font=font_tip,
+        fill=(200, 180, 255, 200),
+        stroke_width=1,
+        stroke_fill=(0, 0, 0, 255),
+    )
     return img.convert("RGB")
 
+
 # render_game_end 里 await get_cover_path
-async def render_game_end(data_dir, steamid, player_name, avatar_url, gameid, game_name, end_time_str, tip_text, duration_h, sgdb_api_key=None, font_path=None, sgdb_game_name=None):
+async def render_game_end(
+    data_dir,
+    steamid,
+    player_name,
+    avatar_url,
+    gameid,
+    game_name,
+    end_time_str,
+    tip_text,
+    duration_h,
+    sgdb_api_key=None,
+    font_path=None,
+    sgdb_game_name=None,
+):
     avatar_path = get_avatar_path(data_dir, steamid, avatar_url)
-    cover_path = await get_cover_path(data_dir, gameid, game_name, sgdb_api_key=sgdb_api_key, sgdb_game_name=sgdb_game_name)
-    img = render_game_end_image(player_name, avatar_path, game_name, cover_path, end_time_str, tip_text, duration_h, font_path=font_path)
+    cover_path = await get_cover_path(
+        data_dir,
+        gameid,
+        game_name,
+        sgdb_api_key=sgdb_api_key,
+        sgdb_game_name=sgdb_game_name,
+    )
+    img = render_game_end_image(
+        player_name,
+        avatar_path,
+        game_name,
+        cover_path,
+        end_time_str,
+        tip_text,
+        duration_h,
+        font_path=font_path,
+    )
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
