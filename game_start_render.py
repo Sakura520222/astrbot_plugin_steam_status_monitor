@@ -31,23 +31,44 @@ def get_avatar_path(data_dir, steamid, url, force_update=False):
     return path if os.path.exists(path) else None
 
 
-async def get_sgdb_vertical_cover(game_name, sgdb_api_key=None, sgdb_game_name=None):
-    """通过 SteamGridDB API 用英文名优先获取竖版封面URL（600x900），失败返回None"""
+async def get_sgdb_vertical_cover(game_name, sgdb_api_key=None, sgdb_game_name=None, steam_appid=None):
+    """通过 SteamGridDB API 获取竖版封面URL（600x900），优先用Steam AppID查询，失败返回None"""
     import httpx
 
     if not sgdb_api_key:
         return None
     headers = {"Authorization": f"Bearer {sgdb_api_key}"}
-    # 优先用英文名查询
-    search_name = sgdb_game_name if sgdb_game_name else game_name
-    search_url = f"https://www.steamgriddb.com/api/v2/search/autocomplete/{search_name}"
     async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            resp = await client.get(search_url, headers=headers)
-            data = resp.json()
-            if not data.get("success") or not data.get("data"):
+        sgdb_game_id = None
+        # 优先用 Steam AppID 直接查询
+        if steam_appid:
+            try:
+                resp = await client.get(
+                    f"https://www.steamgriddb.com/api/v2/games/steam/{steam_appid}",
+                    headers=headers,
+                )
+                data = resp.json()
+                if data.get("success") and data.get("data"):
+                    sgdb_game_id = data["data"]["id"]
+            except Exception as e:
+                print(f"[get_sgdb_vertical_cover] SGDB SteamID查询异常: {e}")
+        # 回退到名称搜索
+        if not sgdb_game_id:
+            search_name = sgdb_game_name if sgdb_game_name else game_name
+            try:
+                resp = await client.get(
+                    f"https://www.steamgriddb.com/api/v2/search/autocomplete/{search_name}",
+                    headers=headers,
+                )
+                data = resp.json()
+                if not data.get("success") or not data.get("data"):
+                    return None
+                sgdb_game_id = data["data"][0]["id"]
+            except Exception as e:
+                print(f"[get_sgdb_vertical_cover] SGDB API异常: {e}")
                 return None
-            sgdb_game_id = data["data"][0]["id"]
+        # 获取封面图
+        try:
             grid_url = f"https://www.steamgriddb.com/api/v2/grids/game/{sgdb_game_id}?dimensions=600x900&type=static&limit=1"
             resp2 = await client.get(grid_url, headers=headers)
             data2 = resp2.json()
@@ -55,7 +76,7 @@ async def get_sgdb_vertical_cover(game_name, sgdb_api_key=None, sgdb_game_name=N
                 return None
             return data2["data"][0]["url"]
         except Exception as e:
-            print(f"[get_sgdb_vertical_cover] SGDB API异常: {e}")
+            print(f"[get_sgdb_vertical_cover] SGDB封面获取异常: {e}")
             return None
 
 
@@ -75,9 +96,9 @@ async def get_cover_path(
     # 只在本地不存在时才云端获取
     if os.path.exists(path):
         return path
-    # 只尝试 SGDB 竖版封面
+    # 只尝试 SGDB 竖版封面（优先用Steam AppID查询）
     url = await get_sgdb_vertical_cover(
-        game_name, sgdb_api_key, sgdb_game_name=sgdb_game_name
+        game_name, sgdb_api_key, sgdb_game_name=sgdb_game_name, steam_appid=gameid
     )
     if url:
         for attempt in range(3):
@@ -89,7 +110,18 @@ async def get_cover_path(
                     return path
             except Exception as e:
                 print(f"[get_cover_path] SGDB下载异常(第{attempt+1}次): {e} url={url}")
-    print(f"[get_cover_path] SGDB未收录或下载失败: {gameid} {game_name}")
+    # SGDB失败，回退到Steam官方封面
+    steam_cover_url = f"https://cdn.akamai.steamstatic.com/steam/apps/{gameid}/library_600x900_2x.jpg"
+    try:
+        resp = httpx.get(steam_cover_url, timeout=15, follow_redirects=True)
+        if resp.status_code == 200 and len(resp.content) > 1000:
+            with open(path, "wb") as f:
+                f.write(resp.content)
+            print(f"[get_cover_path] 使用Steam官方封面: {gameid} {game_name}")
+            return path
+    except Exception as e:
+        print(f"[get_cover_path] Steam官方封面下载失败: {e}")
+    print(f"[get_cover_path] 封面获取全部失败: {gameid} {game_name}")
     return None
 
 

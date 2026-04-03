@@ -1466,6 +1466,17 @@ class SteamStatusMonitorV2(Star):
                     superpower = self.get_today_superpower(sid)
                     online_count = await self.get_game_online_count(current_gameid)
                     font_path = self.get_font_path("NotoSansHans-Regular.otf")
+                    # 获取英文游戏名用于SGDB封面搜索
+                    en_game_name = None
+                    try:
+                        async with httpx.AsyncClient(timeout=5) as client:
+                            resp_en = await client.get(
+                                f"https://store.steampowered.com/api/appdetails?appids={current_gameid}&l=en"
+                            )
+                            info_en = resp_en.json().get(str(current_gameid), {}).get("data", {})
+                            en_game_name = info_en.get("name")
+                    except Exception:
+                        pass
                     img_bytes = await render_game_start(
                         self.data_dir,
                         sid,
@@ -1478,6 +1489,7 @@ class SteamStatusMonitorV2(Star):
                         online_count=online_count,
                         sgdb_api_key=self.SGDB_API_KEY,
                         font_path=font_path,
+                        sgdb_game_name=en_game_name,
                     )
                     logger.info(
                         f"[开始游戏渲染] render_game_start 返回类型: {type(img_bytes)} 长度: {len(img_bytes) if img_bytes else 'None'}"
@@ -1676,10 +1688,21 @@ class SteamStatusMonitorV2(Star):
                                 elif duration_min < 2400:
                                     tip_text = "主人你还活着喵？你是不是忘了关电脑呀~"
                                 else:
-                                    tip_text = "你已经和椅子合为一体，成为传说中的‘椅子精’了喵！"
+                                    tip_text = "你已经和椅子合为一体，成为传说中的’椅子精’了喵！"
                                 font_path = self.get_font_path(
                                     "NotoSansHans-Regular.otf"
                                 )
+                                # 获取英文游戏名用于SGDB封面搜索
+                                en_game_name_end = None
+                                try:
+                                    async with httpx.AsyncClient(timeout=5) as client:
+                                        resp_en = await client.get(
+                                            f"https://store.steampowered.com/api/appdetails?appids={gameid}&l=en"
+                                        )
+                                        info_en = resp_en.json().get(str(gameid), {}).get("data", {})
+                                        en_game_name_end = info_en.get("name")
+                                except Exception:
+                                    pass
                                 img_bytes = await render_game_end(
                                     self.data_dir,
                                     sid,
@@ -1692,6 +1715,7 @@ class SteamStatusMonitorV2(Star):
                                     duration_h,
                                     sgdb_api_key=self.SGDB_API_KEY,
                                     font_path=font_path,
+                                    sgdb_game_name=en_game_name_end,
                                 )
                                 import tempfile
 
