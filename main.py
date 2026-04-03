@@ -34,6 +34,7 @@ from .achievement_monitor import AchievementMonitor
 from .game_end_render import render_game_end  # 新增导入
 from .game_start_render import render_game_start  # 新增导入
 from .openbox import handle_openbox  # 新增导入
+from .steam_friends_render import render_steam_friends_image  # 新增导入
 from .steam_list import handle_steam_list  # 新增导入
 from .superpower_util import get_daily_superpower, load_abilities  # 新增导入
 
@@ -970,6 +971,104 @@ class SteamStatusMonitorV2(Star):
         logger.info(f"[Font] steam_list 渲染传入字体路径: {font_path}")
         async for result in handle_steam_list(self, event, font_path=font_path):
             yield result
+
+    @filter.command("看看steam")
+    async def steam_friends(self, event: AstrMessageEvent):
+        """以Steam好友列表样式展示本群所有玩家状态"""
+        group_id = (
+            str(event.get_group_id()) if hasattr(event, "get_group_id") else "default"
+        )
+        steam_ids = self.group_steam_ids.get(group_id, [])
+        if not self.API_KEY:
+            yield event.plain_result(
+                "未配置 Steam API Key，请先在插件配置中填写 steam_api_key。"
+            )
+            return
+        if not steam_ids:
+            yield event.plain_result("本群未设置监控的 SteamID 列表，请先添加。")
+            return
+        # 获取所有玩家状态
+        start_play_times = self.group_start_play_times.get(group_id, {})
+        now = int(time.time())
+        user_list = []
+        for sid in steam_ids:
+            status = await self.fetch_player_status(sid, retry=1)
+            if not status:
+                user_list.append(
+                    {
+                        "sid": sid, "name": sid, "status": "error",
+                        "avatar_url": "", "game": "", "gameid": "",
+                        "play_str": "获取失败", "lastlogoff": None,
+                    }
+                )
+                continue
+            name = status.get("name") or sid
+            gameid = status.get("gameid")
+            game = status.get("gameextrainfo")
+            lastlogoff = status.get("lastlogoff")
+            personastate = status.get("personastate", 0)
+            avatar_url = status.get("avatarfull") or status.get("avatar") or ""
+            zh_game_name = (
+                await self.get_chinese_game_name(gameid, game)
+                if gameid else (game or "未知游戏")
+            )
+            if gameid:
+                if sid in start_play_times:
+                    play_seconds = now - start_play_times[sid]
+                    play_minutes = play_seconds / 60
+                    play_str = (
+                        f"{play_minutes:.1f}分钟"
+                        if play_minutes < 60
+                        else f"{play_minutes / 60:.1f}小时"
+                    )
+                else:
+                    play_str = "刚开始"
+                user_list.append(
+                    {
+                        "sid": sid, "name": name, "status": "playing",
+                        "avatar_url": avatar_url, "game": zh_game_name,
+                        "gameid": gameid, "play_str": play_str,
+                        "lastlogoff": lastlogoff,
+                    }
+                )
+            elif personastate and int(personastate) > 0:
+                user_list.append(
+                    {
+                        "sid": sid, "name": name, "status": "online",
+                        "avatar_url": avatar_url, "game": "", "gameid": "",
+                        "play_str": "", "lastlogoff": lastlogoff,
+                    }
+                )
+            elif lastlogoff:
+                hours_ago = (now - int(lastlogoff)) / 3600
+                user_list.append(
+                    {
+                        "sid": sid, "name": name, "status": "offline",
+                        "avatar_url": avatar_url, "game": "", "gameid": "",
+                        "play_str": f"上次在线 {hours_ago:.1f} 小时前",
+                        "lastlogoff": lastlogoff,
+                    }
+                )
+            else:
+                user_list.append(
+                    {
+                        "sid": sid, "name": name, "status": "offline",
+                        "avatar_url": avatar_url, "game": "", "gameid": "",
+                        "play_str": "", "lastlogoff": lastlogoff,
+                    }
+                )
+        # 渲染图片
+        font_path = self.get_font_path("NotoSansHans-Regular.otf")
+        img_bytes = await render_steam_friends_image(
+            self.data_dir, user_list, font_path=font_path
+        )
+        if img_bytes:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                tmp.write(img_bytes)
+                tmp_path = tmp.name
+            yield event.image_result(tmp_path)
+        else:
+            yield event.plain_result("渲染图片失败")
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("steam config")
