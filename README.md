@@ -1,5 +1,7 @@
 # Steam 状态监控插件
 
+### 本插件二改自：https://github.com/Maoer233/astrbot_plugin_steam_status_monitor
+
 ## 访问统计
 ![访问统计](https://count.getloli.com/@78451awd?name=78451awd&theme=random&padding=7&offset=0&align=center&scale=1&pixelated=1&darkmode=auto)
 
