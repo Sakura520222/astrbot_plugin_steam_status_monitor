@@ -1,0 +1,30 @@
+{
+  "steam_api_key": {
+    "description": "Steam Web API Key",
+    "type": "string",
+    "hint": "请在 https://steamcommunity.com/dev/apikey 获取 "
+  },
+  "sgdb_api_key": {
+    "description": "SteamGridDB API Key",
+    "type": "string",
+    "hint": "请在 https://www.steamgriddb.com/profile/preferences/api 获取"
+  },
+  "poll_interval_sec": {
+    "description": "轮询间隔（秒）",
+    "type": "int",
+    "hint": "每隔多少秒查询一次Steam状态 (不可用)",
+    "default": 60
+  },
+  "retry_times": {
+    "description": "Steam API请求重试次数 ",
+    "type": "int",
+    "hint": "每次请求失败后最多重试几次 ",
+    "default": 3
+  },
+  "detailed_poll_log": {
+    "description": "详细轮询日志开关",
+    "type": "bool",
+    "hint": "控制台输出完整轮询日志（修改后重启AstrBot生效）",
+    "default": true
+  }
+}
