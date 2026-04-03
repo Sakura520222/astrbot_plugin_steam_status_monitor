@@ -13,6 +13,19 @@ import requests  # 新增导入
 from PIL import Image as PILImage
 
 from astrbot.api import logger
+
+
+def _resolve_steamid(raw):
+    """将Steam好友码或SteamID64统一转为SteamID64，无效返回None"""
+    if not raw.isdigit():
+        return None
+    if len(raw) == 17:
+        return raw
+    STEAMID64_OFFSET = 76561197960265728
+    sid64 = str(int(raw) + STEAMID64_OFFSET)
+    if len(sid64) == 17:
+        return sid64
+    return None
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.message_components import Image, Plain  # 确保已导入 Image
 from astrbot.api.star import Context, Star, register
@@ -862,44 +875,62 @@ class SteamStatusMonitorV2(Star):
                         self.group_start_play_times[group_id][sid] = int(time.time())
         yield event.plain_result("本群Steam状态监控启动完成喔！ヾ(≧ω≦)ゞ")
 
-    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("steam addid")
     async def steam_addid(self, event: AstrMessageEvent, steamid: str):
-        """添加SteamID到本群监控列表（分群），支持多个ID用逗号分隔"""
+        """添加SteamID到本群监控列表（分群），支持好友码或SteamID64，多个ID用点号分隔"""
         group_id = (
             str(event.get_group_id()) if hasattr(event, "get_group_id") else "default"
         )
         # 支持多个ID同时输入
-        steamid_list = [x.strip() for x in steamid.split(".") if x.strip()]
-        invalid_ids = [
-            sid for sid in steamid_list if not sid.isdigit() or len(sid) != 17
-        ]
-        if invalid_ids:
+        raw_list = [x.strip() for x in steamid.split(".") if x.strip()]
+        resolved = {}  # raw -> sid64
+        invalid = []
+        for raw in raw_list:
+            sid64 = _resolve_steamid(raw)
+            if sid64:
+                resolved[raw] = sid64
+            else:
+                invalid.append(raw)
+        if invalid:
             yield event.plain_result(
-                f"以下SteamID无效（需为64位数字串，17位）：{'.'.join(invalid_ids)}"
+                f"以下ID无效（需为17位SteamID64或Steam好友码）：{'.'.join(invalid)}"
             )
             return
         steam_ids = self.group_steam_ids.setdefault(group_id, [])
         added = []
         already = []
         limit = self.max_group_size
-        for sid in steamid_list:
-            if sid in steam_ids:
-                already.append(sid)
+        for raw, sid64 in resolved.items():
+            if sid64 in steam_ids:
+                already.append(f"{raw}({sid64})")
             elif len(steam_ids) < limit:
-                steam_ids.append(sid)
-                added.append(sid)
+                steam_ids.append(sid64)
+                added.append(f"{raw}({sid64})" if raw != sid64 else sid64)
             else:
                 break
         self.group_steam_ids[group_id] = steam_ids
-        self._save_group_steam_ids()  # 新增：保存到 steam_groups.json
+        self._save_group_steam_ids()
+        # 如果本群尚未开启监控，自动开启
+        if added and group_id not in self.running_groups:
+            self.group_monitor_enabled[group_id] = True
+            self.running_groups.add(group_id)
+            if not hasattr(self, "notify_sessions"):
+                self.notify_sessions = {}
+            self.notify_sessions[group_id] = event.unified_msg_origin
+            self._save_notify_session()
+            if group_id not in self.group_last_states:
+                self.group_last_states[group_id] = {}
+            if group_id not in self.group_start_play_times:
+                self.group_start_play_times[group_id] = {}
         msg = ""
         if added:
             msg += f"已为本群添加SteamID: {'.'.join(added)}\n"
         if already:
             msg += f"以下SteamID已存在于本群监控组: {'.'.join(already)}\n"
-        if len(steam_ids) >= limit and len(added) < len(steamid_list):
+        if len(steam_ids) >= limit and len(added) < len(raw_list):
             msg += f"本群监控组人数已达上限（{limit}人），部分ID未添加。\n"
+        if added and group_id in self.running_groups:
+            msg += "已自动开启本群监控推送。\n"
         yield event.plain_result(msg.strip() if msg else "未添加任何SteamID。")
 
     @filter.permission_type(filter.PermissionType.ADMIN)
@@ -1016,7 +1047,7 @@ class SteamStatusMonitorV2(Star):
             "/steam list - 列出所有玩家状态\n"
             "/steam config - 查看当前配置\n"
             "/steam set [参数] [值] - 设置配置参数\n"
-            "/steam addid [SteamID] - 添加SteamID\n"
+            "/steam addid [SteamID/好友码] - 添加SteamID或好友码\n"
             "/steam delid [SteamID] - 删除SteamID\n"
             "/steam openbox [SteamID] - 查看指定SteamID的全部信息\n"
             "/steam rs - 清除状态并初始化\n"

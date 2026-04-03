@@ -80,14 +80,15 @@ async def get_cover_path(
         game_name, sgdb_api_key, sgdb_game_name=sgdb_game_name
     )
     if url:
-        try:
-            resp = httpx.get(url, timeout=10)
-            if resp.status_code == 200:
-                with open(path, "wb") as f:
-                    f.write(resp.content)
-                return path
-        except Exception as e:
-            print(f"[get_cover_path] SGDB下载异常: {e} url={url}")
+        for attempt in range(3):
+            try:
+                resp = httpx.get(url, timeout=15)
+                if resp.status_code == 200:
+                    with open(path, "wb") as f:
+                        f.write(resp.content)
+                    return path
+            except Exception as e:
+                print(f"[get_cover_path] SGDB下载异常(第{attempt+1}次): {e} url={url}")
     print(f"[get_cover_path] SGDB未收录或下载失败: {gameid} {game_name}")
     return None
 
