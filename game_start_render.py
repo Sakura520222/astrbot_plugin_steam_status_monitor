@@ -31,7 +31,9 @@ def get_avatar_path(data_dir, steamid, url, force_update=False):
     return path if os.path.exists(path) else None
 
 
-async def get_sgdb_vertical_cover(game_name, sgdb_api_key=None, sgdb_game_name=None, steam_appid=None):
+async def get_sgdb_vertical_cover(
+    game_name, sgdb_api_key=None, sgdb_game_name=None, steam_appid=None
+):
     """通过 SteamGridDB API 获取竖版封面URL（600x900），优先用Steam AppID查询，失败返回None"""
     import httpx
 
@@ -109,9 +111,13 @@ async def get_cover_path(
                         f.write(resp.content)
                     return path
             except Exception as e:
-                print(f"[get_cover_path] SGDB下载异常(第{attempt+1}次): {e} url={url}")
+                print(
+                    f"[get_cover_path] SGDB下载异常(第{attempt + 1}次): {e} url={url}"
+                )
     # SGDB失败，回退到Steam官方封面
-    steam_cover_url = f"https://cdn.akamai.steamstatic.com/steam/apps/{gameid}/library_600x900_2x.jpg"
+    steam_cover_url = (
+        f"https://cdn.akamai.steamstatic.com/steam/apps/{gameid}/library_600x900_2x.jpg"
+    )
     try:
         resp = httpx.get(steam_cover_url, timeout=15, follow_redirects=True)
         if resp.status_code == 200 and len(resp.content) > 1000:

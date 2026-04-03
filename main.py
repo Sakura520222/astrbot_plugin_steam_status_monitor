@@ -26,6 +26,8 @@ def _resolve_steamid(raw):
     if len(sid64) == 17:
         return sid64
     return None
+
+
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.message_components import Image, Plain  # 确保已导入 Image
 from astrbot.api.star import Context, Star, register
@@ -40,11 +42,11 @@ from .superpower_util import get_daily_superpower, load_abilities  # 新增导�
 
 
 @register(
-    "steam_status_monitor_V2",
-    "Maoer",
-    "Steam状态监控插件V2版",
-    "2.1.6",
-    "https://github.com/Maoer233/astrbot_plugin_steam_status_monitor",
+    "steam_status_monitor",
+    "sakura520222",
+    "Steam状态监控插件",
+    "1.0.0",
+    "https://github.com/Sakura520222/astrbot_plugin_steam_status_monitor",
 )
 class SteamStatusMonitorV2(Star):
     def _get_group_data_path(self, group_id, key):
@@ -429,7 +431,11 @@ class SteamStatusMonitorV2(Star):
             if poll_tasks:
                 await asyncio.gather(*poll_tasks)
             # 短暂延迟后统一输出日志（亚分钟时缩短延迟）
-            log_delay = min(10, self.poll_interval_sec // 2) if self.poll_interval_sec < 60 else 40
+            log_delay = (
+                min(10, self.poll_interval_sec // 2)
+                if self.poll_interval_sec < 60
+                else 40
+            )
             await asyncio.sleep(log_delay)
             if self._last_round_logs:
                 if self.detailed_poll_log:
@@ -996,9 +1002,14 @@ class SteamStatusMonitorV2(Star):
             if not status:
                 user_list.append(
                     {
-                        "sid": sid, "name": sid, "status": "error",
-                        "avatar_url": "", "game": "", "gameid": "",
-                        "play_str": "获取失败", "lastlogoff": None,
+                        "sid": sid,
+                        "name": sid,
+                        "status": "error",
+                        "avatar_url": "",
+                        "game": "",
+                        "gameid": "",
+                        "play_str": "获取失败",
+                        "lastlogoff": None,
                     }
                 )
                 continue
@@ -1010,7 +1021,8 @@ class SteamStatusMonitorV2(Star):
             avatar_url = status.get("avatarfull") or status.get("avatar") or ""
             zh_game_name = (
                 await self.get_chinese_game_name(gameid, game)
-                if gameid else (game or "未知游戏")
+                if gameid
+                else (game or "未知游戏")
             )
             if gameid:
                 if sid in start_play_times:
@@ -1025,26 +1037,39 @@ class SteamStatusMonitorV2(Star):
                     play_str = "刚开始"
                 user_list.append(
                     {
-                        "sid": sid, "name": name, "status": "playing",
-                        "avatar_url": avatar_url, "game": zh_game_name,
-                        "gameid": gameid, "play_str": play_str,
+                        "sid": sid,
+                        "name": name,
+                        "status": "playing",
+                        "avatar_url": avatar_url,
+                        "game": zh_game_name,
+                        "gameid": gameid,
+                        "play_str": play_str,
                         "lastlogoff": lastlogoff,
                     }
                 )
             elif personastate and int(personastate) > 0:
                 user_list.append(
                     {
-                        "sid": sid, "name": name, "status": "online",
-                        "avatar_url": avatar_url, "game": "", "gameid": "",
-                        "play_str": "", "lastlogoff": lastlogoff,
+                        "sid": sid,
+                        "name": name,
+                        "status": "online",
+                        "avatar_url": avatar_url,
+                        "game": "",
+                        "gameid": "",
+                        "play_str": "",
+                        "lastlogoff": lastlogoff,
                     }
                 )
             elif lastlogoff:
                 hours_ago = (now - int(lastlogoff)) / 3600
                 user_list.append(
                     {
-                        "sid": sid, "name": name, "status": "offline",
-                        "avatar_url": avatar_url, "game": "", "gameid": "",
+                        "sid": sid,
+                        "name": name,
+                        "status": "offline",
+                        "avatar_url": avatar_url,
+                        "game": "",
+                        "gameid": "",
                         "play_str": f"上次在线 {hours_ago:.1f} 小时前",
                         "lastlogoff": lastlogoff,
                     }
@@ -1052,9 +1077,14 @@ class SteamStatusMonitorV2(Star):
             else:
                 user_list.append(
                     {
-                        "sid": sid, "name": name, "status": "offline",
-                        "avatar_url": avatar_url, "game": "", "gameid": "",
-                        "play_str": "", "lastlogoff": lastlogoff,
+                        "sid": sid,
+                        "name": name,
+                        "status": "offline",
+                        "avatar_url": avatar_url,
+                        "game": "",
+                        "gameid": "",
+                        "play_str": "",
+                        "lastlogoff": lastlogoff,
                     }
                 )
         # 渲染图片
@@ -1572,7 +1602,11 @@ class SteamStatusMonitorV2(Star):
                             resp_en = await client.get(
                                 f"https://store.steampowered.com/api/appdetails?appids={current_gameid}&l=en"
                             )
-                            info_en = resp_en.json().get(str(current_gameid), {}).get("data", {})
+                            info_en = (
+                                resp_en.json()
+                                .get(str(current_gameid), {})
+                                .get("data", {})
+                            )
                             en_game_name = info_en.get("name")
                     except Exception:
                         pass
@@ -1798,7 +1832,11 @@ class SteamStatusMonitorV2(Star):
                                         resp_en = await client.get(
                                             f"https://store.steampowered.com/api/appdetails?appids={gameid}&l=en"
                                         )
-                                        info_en = resp_en.json().get(str(gameid), {}).get("data", {})
+                                        info_en = (
+                                            resp_en.json()
+                                            .get(str(gameid), {})
+                                            .get("data", {})
+                                        )
                                         en_game_name_end = info_en.get("name")
                                 except Exception:
                                     pass

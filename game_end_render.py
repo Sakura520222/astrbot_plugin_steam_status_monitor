@@ -17,9 +17,10 @@ IMG_W, IMG_H = 512, 192
 STAR_BG_PATH = os.path.join(os.path.dirname(__file__), "随机散布的小星星767x809xp.png")
 
 
-async def get_sgdb_vertical_cover(game_name, sgdb_api_key=None, sgdb_game_name=None, steam_appid=None):
+async def get_sgdb_vertical_cover(
+    game_name, sgdb_api_key=None, sgdb_game_name=None, steam_appid=None
+):
     """通过 SteamGridDB API 获取竖版封面URL（600x900），优先用Steam AppID查询，失败返回None"""
-    import httpx
 
     if not sgdb_api_key:
         return None
@@ -124,7 +125,6 @@ async def get_cover_path(
     sgdb_api_key=None,
     sgdb_game_name=None,
 ):
-    import httpx
 
     cover_dir = os.path.join(data_dir, "covers_v")
     os.makedirs(cover_dir, exist_ok=True)
@@ -145,9 +145,13 @@ async def get_cover_path(
                         f.write(resp.content)
                     return path
             except Exception as e:
-                print(f"[get_cover_path] SGDB下载异常(第{attempt+1}次): {e} url={url}")
+                print(
+                    f"[get_cover_path] SGDB下载异常(第{attempt + 1}次): {e} url={url}"
+                )
     # SGDB失败，回退到Steam官方封面
-    steam_cover_url = f"https://cdn.akamai.steamstatic.com/steam/apps/{gameid}/library_600x900_2x.jpg"
+    steam_cover_url = (
+        f"https://cdn.akamai.steamstatic.com/steam/apps/{gameid}/library_600x900_2x.jpg"
+    )
     try:
         resp = httpx.get(steam_cover_url, timeout=15, follow_redirects=True)
         if resp.status_code == 200 and len(resp.content) > 1000:

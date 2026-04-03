@@ -1,7 +1,7 @@
-# Steam 状态监控插件V2
+# Steam 状态监控插件
 
 ## 访问统计
-![访问统计](https://count.getloli.com/get/@astrbot_ssm?theme=rule34)
+![访问统计](https://count.getloli.com/@78451awd?name=78451awd&theme=random&padding=7&offset=0&align=center&scale=1&pixelated=1&darkmode=auto)
 
 本插件是专为AstrBot设计的插件，用于定时轮询 Steam Web API，监控指定玩家的在线/离线/游戏状态变更，并在状态变化时推送通知。支持多 SteamID 监控，自动记录游玩日志，支持群聊分组，数据持久化，支持丰富指令。
 
@@ -25,7 +25,7 @@
 1. 在AstrBot网页后台的配置中配置 Steam_Web_API_Key：[点击获取](https://steamcommunity.com/dev/apikey)
 2. 在AstrBot网页后台的配置中配置 SGDB_API_KEY（用于获取封面图，可选）：[点击获取](https://www.steamgriddb.com/profile/preferences/api)
 3. 在需要进行提醒的群聊输入指令：
-   `/steam addid [Steam64位ID]`  （如：/steam addid 7656119xxxxxxxxxx）
+   `/steam addid [Steam64位ID或好友码]`  （如：/steam addid 7656119xxxxxxxxxx）
 4. 启动轮询：
    `/steam on`  启动本群 Steam 状态监控，后续状态变更会自动推送。
 
@@ -35,12 +35,6 @@
 - 获取速度与是否成功获取 Steam 数据取决于网络环境。建议通过加速或魔法手段来保证稳定的查询状态。
 
 如果出现未知的轮询错误可以使用 /steam clear_allids 来清除所有群聊的轮询id
-
-## 演示截图
-![开始游戏示例](https://raw.githubusercontent.com/Maoer233/astrbot_plugin_steam_status_monitor/main/str.png)
-![结束游戏示例](https://raw.githubusercontent.com/Maoer233/astrbot_plugin_steam_status_monitor/main/stop.png)
-![成就推送示例](https://raw.githubusercontent.com/Maoer233/astrbot_plugin_steam_status_monitor/main/achievement.png)
-
 
 ## 指令列表
 - `/steam on` 启动本群Steam状态监控
@@ -70,7 +64,6 @@
 如果显示缺少依赖，你可以尝试下载以下工具来进行修复
 pip install httpx pillow
 
-可以添加QQ：1912584909 来反馈功能和建议 闲聊也欢迎喵~
 
 ## ⭐ Stars
 

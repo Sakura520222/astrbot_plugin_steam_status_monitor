@@ -20,14 +20,14 @@ logger = logging.getLogger(__name__)
 SCALE = 2
 
 # Steam 客户端配色
-BG_COLOR = (27, 40, 56)           # #1b2838
-HEADER_BG = (31, 46, 63)          # #1f2e3f
-SECTION_LINE = (46, 63, 82)       # #2e3f52 分组标题下方分割线
-ROW_LINE = (36, 50, 66)           # #243242 行间分割线
+BG_COLOR = (27, 40, 56)  # #1b2838
+HEADER_BG = (31, 46, 63)  # #1f2e3f
+SECTION_LINE = (46, 63, 82)  # #2e3f52 分组标题下方分割线
+ROW_LINE = (36, 50, 66)  # #243242 行间分割线
 
 # 分组标题颜色
-HEADER_COLOR_PLAYING = (76, 255, 176)   # #4CFFB0
-HEADER_COLOR_ONLINE = (102, 192, 244)   # #66C0F4
+HEADER_COLOR_PLAYING = (76, 255, 176)  # #4CFFB0
+HEADER_COLOR_ONLINE = (102, 192, 244)  # #66C0F4
 HEADER_COLOR_OFFLINE = (143, 152, 160)  # #8F98A0
 
 # 布局常量（逻辑像素，实际渲染时乘以 SCALE）
@@ -49,7 +49,12 @@ _COVER_GAP = 10
 
 # 有封面时文字最大宽度
 _TEXT_MAX_WIDTH_COVER = (
-    _IMG_WIDTH - _PADDING_LEFT - _TEXT_LEFT_OFFSET - _COVER_GAP - _COVER_W - _PADDING_RIGHT
+    _IMG_WIDTH
+    - _PADDING_LEFT
+    - _TEXT_LEFT_OFFSET
+    - _COVER_GAP
+    - _COVER_W
+    - _PADDING_RIGHT
 )
 # 无封面时文字最大宽度
 _TEXT_MAX_WIDTH_FULL = _IMG_WIDTH - _PADDING_LEFT - _TEXT_LEFT_OFFSET - _PADDING_RIGHT
@@ -110,15 +115,21 @@ async def fetch_capsule_cover(data_dir, gameid):
     for url in urls:
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                async with httpx.AsyncClient(
+                    timeout=15, follow_redirects=True
+                ) as client:
                     resp = await client.get(url)
                     if resp.status_code == 200 and len(resp.content) > 500:
                         with open(path, "wb") as f:
                             f.write(resp.content)
-                        logger.info(f"[capsule] 下载成功 {gameid} (attempt {attempt+1}): {url}")
+                        logger.info(
+                            f"[capsule] 下载成功 {gameid} (attempt {attempt + 1}): {url}"
+                        )
                         return Image.open(io.BytesIO(resp.content)).convert("RGBA")
             except Exception as e:
-                logger.debug(f"[capsule] 下载异常 {gameid} (attempt {attempt+1}): {e}")
+                logger.debug(
+                    f"[capsule] 下载异常 {gameid} (attempt {attempt + 1}): {e}"
+                )
             if attempt < 2:
                 await asyncio.sleep(0.5 * (attempt + 1))
     logger.warning(f"[capsule] 所有URL尝试均失败: {gameid}")
@@ -228,13 +239,17 @@ async def render_steam_friends_image(data_dir, user_list, font_path=None):
         bbox = draw.textbbox((0, 0), title, font=font_title)
         draw.text(
             ((IMG_WIDTH - bbox[2] + bbox[0]) // 2, 12 * S),
-            title, font=font_title, fill=(255, 255, 255),
+            title,
+            font=font_title,
+            fill=(255, 255, 255),
         )
         empty_text = "暂无绑定的 Steam 用户"
         bbox2 = draw.textbbox((0, 0), empty_text, font=font_status)
         draw.text(
             ((IMG_WIDTH - bbox2[2] + bbox2[0]) // 2, 70 * S),
-            empty_text, font=font_status, fill=(150, 155, 165),
+            empty_text,
+            font=font_status,
+            fill=(150, 155, 165),
         )
         buf = io.BytesIO()
         img.save(buf, format="PNG")
@@ -293,11 +308,15 @@ async def render_steam_friends_image(data_dir, user_list, font_path=None):
     title_bbox = draw.textbbox((0, 0), title_text, font=font_title)
     draw.text(
         ((IMG_WIDTH - title_bbox[2] + title_bbox[0]) // 2, 12 * S),
-        title_text, font=font_title, fill=(255, 255, 255),
+        title_text,
+        font=font_title,
+        fill=(255, 255, 255),
     )
 
     # 并发获取头像和封面
-    avatar_tasks = [fetch_avatar(u["avatar_url"], data_dir, u["sid"]) for u in user_list]
+    avatar_tasks = [
+        fetch_avatar(u["avatar_url"], data_dir, u["sid"]) for u in user_list
+    ]
     cover_tasks = [fetch_capsule_cover(data_dir, u.get("gameid")) for u in user_list]
     all_avatars, all_covers = await asyncio.gather(
         asyncio.gather(*avatar_tasks),
@@ -336,7 +355,9 @@ async def render_steam_friends_image(data_dir, user_list, font_path=None):
                 if cover_img:
                     cover_x = IMG_WIDTH - PADDING_RIGHT - COVER_W
                     cover_y = y + (entry_h - COVER_H) // 2
-                    _draw_rounded_cover(img, cover_img, cover_x, cover_y, COVER_W, COVER_H, COVER_RADIUS)
+                    _draw_rounded_cover(
+                        img, cover_img, cover_x, cover_y, COVER_W, COVER_H, COVER_RADIUS
+                    )
                     draw = ImageDraw.Draw(img)
 
             # 头像
@@ -375,19 +396,23 @@ async def render_steam_friends_image(data_dir, user_list, font_path=None):
             y += entry_h
             draw.line(
                 [(PADDING_LEFT, y), (IMG_WIDTH - PADDING_RIGHT, y)],
-                fill=ROW_LINE, width=S,
+                fill=ROW_LINE,
+                width=S,
             )
 
     # 底部统计
     online_count = sum(
-        1 for u in user_list
+        1
+        for u in user_list
         if u["status"] in ("playing", "online", "away", "snooze", "busy")
     )
     total_count = len(user_list)
     stat_text = f"在线 {online_count} / 总数 {total_count}"
     draw.text(
         (PADDING_LEFT, total_height - FOOTER_HEIGHT + 8 * S),
-        stat_text, font=font_footer, fill=(150, 170, 190),
+        stat_text,
+        font=font_footer,
+        fill=(150, 170, 190),
     )
 
     # 输出
