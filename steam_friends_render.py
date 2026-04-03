@@ -3,6 +3,7 @@ import io
 import logging
 import os
 
+import httpx
 from PIL import Image, ImageDraw, ImageFont
 
 from .steam_list_render import (
@@ -30,16 +31,28 @@ HEADER_COLOR_ONLINE = (102, 192, 244)   # #66C0F4
 HEADER_COLOR_OFFLINE = (143, 152, 160)  # #8F98A0
 
 # 布局常量（逻辑像素，实际渲染时乘以 SCALE）
-_IMG_WIDTH = 400
+_IMG_WIDTH = 480
 _PADDING_LEFT = 16
 _PADDING_RIGHT = 16
 _AVATAR_SIZE = 36
 _AVATAR_RADIUS = 6
-_ENTRY_MIN_HEIGHT = 44
+_ENTRY_MIN_HEIGHT = 54
 _NAME_LINE_H = 20
 _STATUS_LINE_H = 18
 _TEXT_LEFT_OFFSET = _AVATAR_SIZE + 10
-_TEXT_MAX_WIDTH = _IMG_WIDTH - _PADDING_LEFT - _TEXT_LEFT_OFFSET - _PADDING_RIGHT
+
+# 横版封面
+_COVER_W = 120
+_COVER_H = 45
+_COVER_RADIUS = 6
+_COVER_GAP = 10
+
+# 有封面时文字最大宽度
+_TEXT_MAX_WIDTH_COVER = (
+    _IMG_WIDTH - _PADDING_LEFT - _TEXT_LEFT_OFFSET - _COVER_GAP - _COVER_W - _PADDING_RIGHT
+)
+# 无封面时文字最大宽度
+_TEXT_MAX_WIDTH_FULL = _IMG_WIDTH - _PADDING_LEFT - _TEXT_LEFT_OFFSET - _PADDING_RIGHT
 
 _HEADER_HEIGHT = 32
 _TITLE_HEIGHT = 44
@@ -58,12 +71,58 @@ ENTRY_MIN_HEIGHT = _ENTRY_MIN_HEIGHT * S
 NAME_LINE_H = _NAME_LINE_H * S
 STATUS_LINE_H = _STATUS_LINE_H * S
 TEXT_LEFT_OFFSET = _TEXT_LEFT_OFFSET * S
-TEXT_MAX_WIDTH = _TEXT_MAX_WIDTH * S
+TEXT_MAX_WIDTH_COVER = _TEXT_MAX_WIDTH_COVER * S
+TEXT_MAX_WIDTH_FULL = _TEXT_MAX_WIDTH_FULL * S
+COVER_W = _COVER_W * S
+COVER_H = _COVER_H * S
+COVER_RADIUS = _COVER_RADIUS * S
+COVER_GAP = _COVER_GAP * S
 HEADER_HEIGHT = _HEADER_HEIGHT * S
 TITLE_HEIGHT = _TITLE_HEIGHT * S
 FOOTER_HEIGHT = _FOOTER_HEIGHT * S
 SECTION_GAP = _SECTION_GAP * S
 ENTRY_PAD_Y = _ENTRY_PAD_Y * S
+
+
+async def fetch_capsule_cover(data_dir, gameid):
+    """获取游戏横版封面图（capsule），带重试和备选URL，返回PIL Image或None"""
+    if not gameid:
+        return None
+    capsule_dir = os.path.join(data_dir, "capsules")
+    os.makedirs(capsule_dir, exist_ok=True)
+    path = os.path.join(capsule_dir, f"{gameid}.jpg")
+    # 缓存读取
+    if os.path.exists(path):
+        try:
+            return Image.open(path).convert("RGBA")
+        except Exception:
+            # 缓存文件损坏，删除后重新下载
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+    # 多个备选URL（按优先级尝试）
+    urls = [
+        f"https://cdn.akamai.steamstatic.com/steam/apps/{gameid}/capsule_231x87.jpg",
+        f"https://cdn.akamai.steamstatic.com/steam/apps/{gameid}/header.jpg",
+        f"https://cdn.akamai.steamstatic.com/steam/apps/{gameid}/capsule_184x69.jpg",
+    ]
+    for url in urls:
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                    resp = await client.get(url)
+                    if resp.status_code == 200 and len(resp.content) > 500:
+                        with open(path, "wb") as f:
+                            f.write(resp.content)
+                        logger.info(f"[capsule] 下载成功 {gameid} (attempt {attempt+1}): {url}")
+                        return Image.open(io.BytesIO(resp.content)).convert("RGBA")
+            except Exception as e:
+                logger.debug(f"[capsule] 下载异常 {gameid} (attempt {attempt+1}): {e}")
+            if attempt < 2:
+                await asyncio.sleep(0.5 * (attempt + 1))
+    logger.warning(f"[capsule] 所有URL尝试均失败: {gameid}")
+    return None
 
 
 def _text_wrap(draw, text, font, max_width):
@@ -112,16 +171,31 @@ def _get_status_line_color(user):
         return get_status_color(user["status"])
 
 
+def _has_cover(user):
+    """该用户是否有游戏封面"""
+    return user["status"] == "playing" and user.get("gameid")
+
+
 def _calc_entry_height(draw, user, font_name, font_status):
-    """计算单行高度（考虑自动换行）"""
-    name_lines = _text_wrap(draw, user["name"], font_name, TEXT_MAX_WIDTH)
+    """计算单行高度（考虑自动换行和封面）"""
+    has_cv = _has_cover(user)
+    max_w = TEXT_MAX_WIDTH_COVER if has_cv else TEXT_MAX_WIDTH_FULL
+    name_lines = _text_wrap(draw, user["name"], font_name, max_w)
     status_text = _get_status_line(user)
-    status_lines = _text_wrap(draw, status_text, font_status, TEXT_MAX_WIDTH)
+    status_lines = _text_wrap(draw, status_text, font_status, max_w)
     h = ENTRY_PAD_Y
     h += len(name_lines) * NAME_LINE_H
     h += len(status_lines) * STATUS_LINE_H
     h += ENTRY_PAD_Y
     return max(h, ENTRY_MIN_HEIGHT), name_lines, status_lines
+
+
+def _draw_rounded_cover(img, cover, x, y, w, h, radius):
+    """在img上绘制圆角封面"""
+    cover_resized = cover.resize((w, h), Image.LANCZOS)
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, w, h), radius=radius, fill=255)
+    img.paste(cover_resized, (x, y), mask)
 
 
 async def render_steam_friends_image(data_dir, user_list, font_path=None):
@@ -222,10 +296,15 @@ async def render_steam_friends_image(data_dir, user_list, font_path=None):
         title_text, font=font_title, fill=(255, 255, 255),
     )
 
-    # 获取头像
-    tasks = [fetch_avatar(u["avatar_url"], data_dir, u["sid"]) for u in user_list]
-    all_avatars = await asyncio.gather(*tasks)
+    # 并发获取头像和封面
+    avatar_tasks = [fetch_avatar(u["avatar_url"], data_dir, u["sid"]) for u in user_list]
+    cover_tasks = [fetch_capsule_cover(data_dir, u.get("gameid")) for u in user_list]
+    all_avatars, all_covers = await asyncio.gather(
+        asyncio.gather(*avatar_tasks),
+        asyncio.gather(*cover_tasks),
+    )
     avatar_map = {u["sid"]: all_avatars[i] for i, u in enumerate(user_list)}
+    cover_map = {u["sid"]: all_covers[i] for i, u in enumerate(user_list)}
 
     y = TITLE_HEIGHT
 
@@ -249,6 +328,17 @@ async def render_steam_friends_image(data_dir, user_list, font_path=None):
         y += SECTION_GAP
 
         for user, entry_h, name_lines, status_lines in entries:
+            has_cv = _has_cover(user)
+
+            # 横版封面（右侧）
+            if has_cv:
+                cover_img = cover_map.get(user["sid"])
+                if cover_img:
+                    cover_x = IMG_WIDTH - PADDING_RIGHT - COVER_W
+                    cover_y = y + (entry_h - COVER_H) // 2
+                    _draw_rounded_cover(img, cover_img, cover_x, cover_y, COVER_W, COVER_H, COVER_RADIUS)
+                    draw = ImageDraw.Draw(img)
+
             # 头像
             avatar = avatar_map.get(user["sid"])
             if avatar:
@@ -264,9 +354,12 @@ async def render_steam_friends_image(data_dir, user_list, font_path=None):
                 img.paste(avatar_rgba, (PADDING_LEFT, avatar_y), mask)
                 draw = ImageDraw.Draw(img)
 
+            # 文字最大宽度
+            max_w = TEXT_MAX_WIDTH_COVER if has_cv else TEXT_MAX_WIDTH_FULL
+            text_x = PADDING_LEFT + TEXT_LEFT_OFFSET
+
             # 玩家名
             name_color = get_name_color(user["status"])
-            text_x = PADDING_LEFT + TEXT_LEFT_OFFSET
             ny = y + ENTRY_PAD_Y
             for line in name_lines:
                 draw.text((text_x, ny), line, font=font_name, fill=name_color)
