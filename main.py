@@ -340,8 +340,8 @@ class SteamStatusMonitorV2(Star):
                     self.running_groups.add(group_id)
         # --- 新增：全局日志收集与统一输出 ---
         self._last_round_logs = []  # [(group_id, logstr)]
-        asyncio.create_task(self.global_poll_and_log_loop())
-        asyncio.create_task(self.init_poll_time_once())
+        self._poll_loop_task = asyncio.create_task(self.global_poll_and_log_loop())
+        self._init_poll_task = asyncio.create_task(self.init_poll_time_once())
         # SGDB API Key 可在 https://www.steamgriddb.com/profile/preferences/api 获取
         self.SGDB_API_KEY = self.config.get("sgdb_api_key", "")
 
@@ -366,13 +366,23 @@ class SteamStatusMonitorV2(Star):
             )
 
     async def global_poll_and_log_loop(self):
-        """全局定时并发查询所有群Steam状态，按动态间隔判断是否需要查询，40秒统一输出日志"""
+        """全局定时并发查询所有群Steam状态，按动态间隔判断是否需要查询"""
         while True:
-            # 计算距离下一个整分钟0秒的秒数
+            # 动态计算 sleep 时间：等到最早的 next_poll_time，上限60秒
             now = time.time()
-            next_minute = (int(now) // 60 + 1) * 60
-            await asyncio.sleep(max(0, next_minute - now))
-            # 0秒：遍历所有群和SteamID，按动态间隔判断是否需要查询
+            earliest = None
+            for gid in self.group_steam_ids:
+                next_poll = self.next_poll_time.get(gid, {})
+                for sid, t in next_poll.items():
+                    if t > now and (earliest is None or t < earliest):
+                        earliest = t
+            if earliest is None:
+                sleep_time = self.poll_interval_sec
+            else:
+                sleep_time = max(0, earliest - now)
+            sleep_time = min(sleep_time, 60)
+            await asyncio.sleep(sleep_time)
+            # 查询所有到期的SteamID
             group_ids = list(self.group_steam_ids.keys())
             poll_tasks = []
             for group_id in group_ids:
@@ -404,8 +414,9 @@ class SteamStatusMonitorV2(Star):
                 poll_tasks.append(query_one_group(group_id, sids_to_query))
             if poll_tasks:
                 await asyncio.gather(*poll_tasks)
-            # 40秒统一输出日志
-            await asyncio.sleep(40)
+            # 短暂延迟后统一输出日志（亚分钟时缩短延迟）
+            log_delay = min(10, self.poll_interval_sec // 2) if self.poll_interval_sec < 60 else 40
+            await asyncio.sleep(log_delay)
             if self._last_round_logs:
                 if self.detailed_poll_log:
                     all_logs = []
@@ -423,6 +434,11 @@ class SteamStatusMonitorV2(Star):
     async def terminate(self):
         """插件被卸载/停用时自动保存持久化数据"""
         self._save_persistent_data()
+        # 停止轮询循环任务
+        for task_attr in ("_poll_loop_task", "_init_poll_task"):
+            task = getattr(self, task_attr, None)
+            if task and not task.done():
+                task.cancel()
         # 停止所有成就定时任务
         for task in self.achievement_poll_tasks.values():
             task.cancel()
@@ -1319,6 +1335,8 @@ class SteamStatusMonitorV2(Star):
 
             # --- 退出游戏（缓冲3分钟） ---
             if prev_gameid and current_gameid in [None, "", "0"]:
+                # 立即更新 last_states，防止并发调用重复触发退出逻辑
+                last_states[sid] = status
                 logger.info(
                     f"[退出逻辑] {name} prev_gameid={prev_gameid} current_gameid={current_gameid}"
                 )
@@ -1366,6 +1384,8 @@ class SteamStatusMonitorV2(Star):
 
             # --- 开始游戏/继续游戏（仅当 gameid 变更时推送） ---
             if current_gameid not in [None, "", "0"] and current_gameid != prev_gameid:
+                # 立即更新 last_states，防止并发调用重复触发推送
+                last_states[sid] = status
                 quit_info = pending_quit[sid].get(current_gameid)
                 if (
                     quit_info
@@ -1510,49 +1530,46 @@ class SteamStatusMonitorV2(Star):
                 last_states[sid] = status
                 continue  # 防止重复推送
 
-            # 智能轮询间隔设置
+            # 智能轮询间隔设置（基于配置的基准间隔）
             next_poll = self.next_poll_time.setdefault(group_id, {})
-            poll_interval = 1800  # 默认30分钟
+            base = self.poll_interval_sec
             if gameid:
-                poll_interval = 60
+                poll_interval = base
             elif personastate and int(personastate) > 0:
-                poll_interval = 60
+                poll_interval = base
             elif lastlogoff:
                 hours_ago = (now - int(lastlogoff)) / 3600
                 if hours_ago <= 0.2:
-                    poll_interval = 60
+                    poll_interval = base
                 elif hours_ago <= 3:
-                    poll_interval = 300
+                    poll_interval = base * 5
                 elif hours_ago <= 24:
-                    poll_interval = 600
+                    poll_interval = base * 10
                 elif hours_ago <= 48:
-                    poll_interval = 1200
+                    poll_interval = base * 20
                 else:
-                    poll_interval = 1800
+                    poll_interval = base * 30
             else:
-                poll_interval = 1800
-            # 对齐到下一个整分钟/5分钟/10分钟等
+                poll_interval = base * 30
+            # 计算下次轮询时间
             import math
 
             interval_min = poll_interval // 60
-            next_time = ((now // 60) + math.ceil(interval_min)) * 60
-            # 如果是5、10、20、30分钟轮询，进一步对齐到5、10、20、30的倍数
-            if interval_min in [5, 10, 20, 30]:
-                next_time = ((now // 60) // interval_min + 1) * interval_min * 60
+            if interval_min >= 1:
+                # 分钟级间隔：对齐到整分钟/5分钟/10分钟等
+                next_time = ((now // 60) + math.ceil(interval_min)) * 60
+                if interval_min in [5, 10, 20, 30]:
+                    next_time = ((now // 60) // interval_min + 1) * interval_min * 60
+            else:
+                # 亚分钟间隔：直接 now + interval
+                next_time = now + poll_interval
             next_poll[sid] = next_time
             # 轮询间隔描述
-            if poll_interval == 60:
-                poll_level_str = "1分钟轮询"
-            elif poll_interval == 300:
-                poll_level_str = "5分钟轮询"
-            elif poll_interval == 600:
-                poll_level_str = "10分钟轮询"
-            elif poll_interval == 1200:
-                poll_level_str = "20分钟轮询"
-            elif poll_interval == 1800:
-                poll_level_str = "30分钟轮询"
+            if poll_interval >= 60 and poll_interval % 60 == 0:
+                mins = poll_interval // 60
+                poll_level_str = f"{mins}分钟轮询"
             else:
-                poll_level_str = f"{poll_interval // 60}分钟轮询"
+                poll_level_str = f"{poll_interval}秒轮询"
 
             if gameid:
                 msg_lines.append(

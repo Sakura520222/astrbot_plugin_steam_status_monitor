@@ -12,7 +12,7 @@
   "poll_interval_sec": {
     "description": "轮询间隔（秒）",
     "type": "int",
-    "hint": "每隔多少秒查询一次Steam状态 (不可用)",
+    "hint": "活跃状态（游戏中/在线）的轮询间隔（秒），离线状态自动按比例延长。默认60秒",
     "default": 60
   },
   "retry_times": {
