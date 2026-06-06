@@ -42,7 +42,7 @@ from .superpower_util import get_daily_superpower, load_abilities  # 新增导�
 
 
 @register(
-    "steam_status_monitor",
+    "astrbot_plugin_steam_status_monitor",
     "sakura520222",
     "Steam状态监控插件",
     "1.0.0",

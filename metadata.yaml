@@ -1,4 +1,4 @@
-name: steam_status_monitor
+name: astrbot_plugin_steam_status_monitor
 display_name: Steam 状态监控
 desc: 用于监控steam指定玩家的在线/离线/游戏状态变更，并在状态变化时推送通知。
 author: 车厘子小樱
